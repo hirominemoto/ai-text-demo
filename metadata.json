@@ -1,0 +1,5 @@
+{
+  "name": "AI Text Generation Demo",
+  "description": "An interactive demo visualizing how Generative AI predicts and generates text token by token using fixed scenarios.",
+  "requestFramePermissions": []
+}
