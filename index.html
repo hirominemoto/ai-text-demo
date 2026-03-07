@@ -1,13 +1,1327 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生成AIが文章をつくる仕組み</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080d18;
+  --panel: #0f1824;
+  --panel2: #162030;
+  --border: #1e2d47;
+  --accent: #00e5ff;
+  --accent-dim: rgba(0,229,255,0.12);
+  --purple: #a78bfa;
+  --green: #34d399;
+  --yellow: #fbbf24;
+  --red: #f87171;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --font: 'Noto Sans JP', sans-serif;
 
+  /* Mode colors */
+  --mode-color: #00e5ff;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px 60px;
+  overflow-x: hidden;
+}
+
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background:
+    radial-gradient(ellipse 60% 40% at 15% 20%, rgba(0,229,255,0.035) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 60% at 85% 80%, rgba(167,139,250,0.04) 0%, transparent 55%);
+  pointer-events:none; z-index:0;
+}
+
+.wrapper { position:relative; z-index:1; width:100%; max-width:1000px; }
+
+/* ===== HEADER ===== */
+.header { text-align:center; margin-bottom:24px; }
+.header h1 {
+  font-size: clamp(22px, 4vw, 36px);
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  margin-bottom: 6px;
+  background: linear-gradient(135deg, #e2e8f0 30%, var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.header p { color: var(--muted); font-size: 13px; }
+
+/* ===== SETUP SCREEN ===== */
+#setup-screen { margin-bottom: 0; }
+
+.setup-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 28px;
+  margin-bottom: 16px;
+}
+
+.setup-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.text-input {
+  width: 100%;
+  background: var(--panel2);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 18px;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.text-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0,229,255,0.12);
+}
+
+.preset-chips {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  margin-bottom: 6px;
+}
+.chip {
+  font-size: 12px; padding: 5px 14px;
+  background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 20px; color: var(--muted);
+  cursor: pointer; transition: all 0.15s; font-family: var(--font);
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ===== MODE SELECTOR ===== */
+.mode-section {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+
+.mode-label {
+  font-size: 12px; color: var(--muted);
+  letter-spacing: 1px; text-transform: uppercase;
+  margin-bottom: 12px; text-align: center;
+}
+
+.mode-tabs {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  margin-bottom: 14px;
+}
+
+.mode-tab {
+  display: flex; align-items: center; gap: 7px;
+  padding: 9px 16px;
+  background: var(--panel2); border: 1.5px solid var(--border);
+  border-radius: 12px; cursor: pointer;
+  transition: all 0.2s; font-family: var(--font);
+  font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.mode-tab:hover { border-color: var(--muted); color: var(--text); }
+.mode-tab.active {
+  border-color: var(--mode-color);
+  color: var(--mode-color);
+  background: rgba(0,0,0,0.2);
+  box-shadow: 0 0 12px rgba(0,0,0,0.3);
+}
+.mode-tab .mode-icon { font-size: 16px; }
+
+.mode-desc {
+  font-size: 12px; color: var(--muted);
+  text-align: center; min-height: 18px;
+  transition: all 0.2s;
+}
+
+/* ===== START BUTTON ===== */
+.btn-start-big {
+  width: 100%; padding: 16px;
+  background: linear-gradient(135deg, var(--accent), #0099bb);
+  color: #000; font-family: var(--font);
+  font-size: 16px; font-weight: 900;
+  border: none; border-radius: 14px;
+  cursor: pointer; transition: all 0.2s;
+  box-shadow: 0 4px 24px rgba(0,229,255,0.35);
+  letter-spacing: 0.5px;
+}
+.btn-start-big:hover { box-shadow: 0 4px 36px rgba(0,229,255,0.55); transform: translateY(-1px); }
+.btn-start-big:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+.btn {
+  font-family: var(--font); font-size: 13px; font-weight: 700;
+  padding: 10px 20px; border-radius: 10px; border: none;
+  cursor: pointer; transition: all 0.2s;
+}
+.btn-outline {
+  background: var(--panel2); color: var(--muted);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover { border-color: var(--muted); color: var(--text); }
+
+/* ===== MAIN VISUALIZER ===== */
+#viz-screen { display: none; }
+
+/* Mode badge */
+.mode-badge-row {
+  display: flex; align-items: center; gap: 10px;
+  justify-content: center; margin-bottom: 18px;
+}
+.mode-badge {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  background: rgba(0,0,0,0.3);
+  border: 1.5px solid var(--mode-color);
+  border-radius: 20px;
+  font-size: 12px; font-weight: 700;
+  color: var(--mode-color);
+  box-shadow: 0 0 12px rgba(0,0,0,0.4);
+}
+
+/* ===== 3-COLUMN STAGE ===== */
+.stage {
+  display: grid;
+  grid-template-columns: 1fr 200px 1fr;
+  gap: 0;
+  align-items: center;
+  margin-bottom: 18px;
+  position: relative;
+  min-height: 280px;
+}
+
+/* ===== PANEL BASE ===== */
+.stage-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.panel-header {
+  font-size: 11px; color: var(--muted);
+  letter-spacing: 1px; text-transform: uppercase;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 6px;
+}
+
+.step-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px;
+  background: var(--accent-dim); border: 1px solid var(--accent);
+  border-radius: 50%; font-size: 9px; color: var(--accent);
+  font-weight: 700; flex-shrink: 0;
+}
+
+/* ===== LEFT: CONTEXT PANEL ===== */
+.context-panel { grid-column: 1; }
+
+.context-body {
+  padding: 18px 16px; min-height: 130px;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+
+.context-tokens {
+  font-size: clamp(14px, 2.5vw, 20px);
+  font-weight: 700; line-height: 1.7;
+  flex: 1;
+}
+
+.tok {
+  display: inline;
+  border-radius: 3px;
+  padding: 0 1px;
+  transition: all 0.3s;
+}
+.tok.new-token {
+  background: rgba(0,229,255,0.18);
+  color: var(--accent);
+  animation: tokenPop 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+@keyframes tokenPop {
+  0%  { opacity:0; transform: scale(0.6) translateY(4px); }
+  70% { opacity:1; transform: scale(1.08) translateY(-1px); }
+  100%{ opacity:1; transform: scale(1) translateY(0); }
+}
+
+.context-step-label {
+  font-size: 10px; color: var(--muted);
+  margin-top: 10px; text-align: right;
+  letter-spacing: 0.5px;
+}
+
+/* ===== CENTER: MODEL PANEL ===== */
+.model-col {
+  grid-column: 2;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 0 8px;
+  position: relative;
+}
+
+.model-box {
+  background: linear-gradient(160deg, #1a1050 0%, #12182e 100%);
+  border: 1.5px solid var(--purple);
+  border-radius: 18px; padding: 14px 10px 10px;
+  width: 100%; text-align: center;
+  box-shadow: 0 0 24px rgba(167,139,250,0.12);
+  position: relative; overflow: hidden;
+}
+.model-box::before {
+  content:'';position:absolute;inset:0;
+  background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(167,139,250,0.07), transparent);
+  pointer-events:none;
+}
+.model-box-title {
+  font-size: 12px; font-weight: 700; color: var(--purple);
+  margin-bottom: 10px; letter-spacing: 0.5px;
+}
+
+#nn-svg { width: 100%; max-width: 170px; }
+.nn-label { font-size: 10px; color: var(--muted); margin-top: 6px; }
+
+/* SVG arrows */
+.flow-arrow {
+  display: flex; align-items: center; justify-content: center;
+  height: 28px; width: 100%;
+  position: relative;
+}
+
+.arrow-track {
+  width: 100%; height: 2px;
+  background: var(--border);
+  border-radius: 1px;
+  position: relative; overflow: visible;
+}
+.arrow-beam {
+  position: absolute; top: 50%; left: 0;
+  width: 12px; height: 12px;
+  background: var(--accent);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 10px var(--accent), 0 0 20px rgba(0,229,255,0.4);
+  opacity: 0;
+  transition: left 0.5s cubic-bezier(0.4,0,0.2,1), opacity 0.2s;
+}
+.arrow-beam.flying { opacity: 1; }
+
+/* Dashed connecting lines between panels */
+.connector {
+  position: absolute; top: 50%;
+  width: 18px; height: 2px;
+  border-top: 2px dashed var(--border);
+  transition: border-color 0.3s;
+}
+.connector.active { border-color: var(--accent); }
+.connector-left { right: 100%; }
+.connector-right { left: 100%; }
+
+/* ===== RIGHT: CANDIDATES PANEL ===== */
+.candidates-panel { grid-column: 3; }
+
+.candidates-body { padding: 10px 12px; }
+
+.candidate-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 8px; margin-bottom: 5px;
+  border-radius: 8px; border: 1.5px solid transparent;
+  transition: all 0.35s; position: relative; overflow: hidden;
+  cursor: default;
+}
+.candidate-row.appearing {
+  animation: candAppear 0.3s ease forwards;
+}
+@keyframes candAppear {
+  from { opacity:0; transform: translateX(12px); }
+  to   { opacity:1; transform: translateX(0); }
+}
+
+.candidate-row::before {
+  content:''; position:absolute; left:0; top:0; bottom:0; width:0;
+  border-radius: 8px; z-index:0;
+  transition: width 0.55s cubic-bezier(0.34,1.2,0.64,1);
+}
+.candidate-row.rank-0::before { background: rgba(0,229,255,0.07); }
+.candidate-row.rank-1::before { background: rgba(167,139,250,0.06); }
+.candidate-row.rank-2::before { background: rgba(52,211,153,0.05); }
+.candidate-row.rank-3::before { background: rgba(255,255,255,0.03); }
+
+.candidate-row.selected {
+  border-color: var(--mode-color) !important;
+  background: rgba(0,0,0,0.2) !important;
+  animation: selectPulse 0.55s ease !important;
+}
+@keyframes selectPulse {
+  0%  { box-shadow: 0 0 0 0 rgba(0,229,255,0.5); }
+  100%{ box-shadow: 0 0 0 14px rgba(0,229,255,0); }
+}
+
+.cand-word {
+  font-size: 15px; font-weight: 800; min-width: 48px;
+  position: relative; z-index:1;
+}
+.cand-tag {
+  font-size: 9px; padding: 2px 5px; border-radius: 4px;
+  background: var(--panel2); color: var(--muted);
+  border: 1px solid var(--border);
+  position: relative; z-index:1; flex-shrink:0;
+}
+.cand-bar-wrap {
+  flex: 1; height: 7px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px; overflow: hidden;
+  position: relative; z-index:1;
+}
+.cand-bar {
+  height: 100%; border-radius: 4px; width: 0;
+  transition: width 0.5s cubic-bezier(0.34,1.2,0.64,1);
+}
+.cand-pct {
+  font-size: 13px; font-weight: 800;
+  min-width: 40px; text-align: right;
+  position: relative; z-index:1;
+}
+.cand-check {
+  font-size: 13px; position: relative; z-index:1;
+  opacity: 0; transition: opacity 0.3s;
+}
+.candidate-row.selected .cand-check { opacity: 1; }
+
+/* Mode highlight on candidate */
+.mode-indicator {
+  position: absolute; right: 6px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 9px; padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--mode-color);
+  color: var(--mode-color);
+  font-weight: 700; letter-spacing: 0.5px;
+  z-index: 2; opacity: 0;
+  transition: opacity 0.3s;
+}
+.candidate-row.mode-pick .mode-indicator { opacity: 1; }
+
+/* ===== BOTTOM: OUTPUT ===== */
+.output-row {
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  border-radius: 16px;
+  box-shadow: 0 0 28px rgba(0,229,255,0.1);
+  margin-bottom: 18px;
+  position: relative; overflow: hidden;
+}
+.output-row::before {
+  content:'';position:absolute;inset:0;
+  background: linear-gradient(135deg, rgba(0,229,255,0.025), transparent);
+  pointer-events:none;
+}
+.output-header {
+  padding: 9px 18px; border-bottom: 1px solid var(--border);
+  font-size: 11px; color: var(--accent);
+  letter-spacing: 1.5px; text-transform: uppercase;
+  display: flex; align-items: center; gap: 8px;
+}
+.output-body {
+  padding: 20px 22px; min-height: 76px;
+  display: flex; align-items: center;
+}
+#output-full {
+  font-size: clamp(17px, 3vw, 25px);
+  font-weight: 800; line-height: 1.6;
+}
+.cursor-blink {
+  display: inline-block; width: 3px; height: 1em;
+  background: var(--accent); vertical-align: text-bottom;
+  margin-left: 2px; animation: blink 0.7s steps(1) infinite;
+  box-shadow: 0 0 8px var(--accent);
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ===== CONTROLS ===== */
+.controls-row {
+  display: flex; justify-content: center; gap: 10px;
+  margin-bottom: 18px; flex-wrap: wrap;
+}
+
+/* ===== THINKING ===== */
+.thinking {
+  display: none; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--accent);
+  justify-content: center; margin-bottom: 12px;
+}
+.thinking.active { display: flex; }
+.dots span {
+  display: inline-block; width: 5px; height: 5px;
+  background: var(--accent); border-radius: 50%;
+  animation: dotB 1.2s infinite; margin: 0 2px;
+}
+.dots span:nth-child(2){animation-delay:.2s}
+.dots span:nth-child(3){animation-delay:.4s}
+@keyframes dotB {
+  0%,80%,100%{transform:scale(0.6);opacity:0.3}
+  40%{transform:scale(1.1);opacity:1}
+}
+
+/* ===== STATS ===== */
+.stats-strip {
+  display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+}
+.stat-pill {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 9px 16px; text-align: center; min-width: 90px;
+}
+.stat-num {
+  font-size: 19px; font-weight: 900; color: var(--accent);
+  font-family: 'DotGothic16', monospace;
+}
+.stat-lbl { font-size: 9px; color: var(--muted); margin-top: 2px; letter-spacing: 0.5px; }
+
+/* ===== FINISH ===== */
+.finish-banner {
+  display: none; text-align: center; padding: 14px;
+  background: rgba(52,211,153,0.08);
+  border: 1px solid rgba(52,211,153,0.3);
+  border-radius: 12px; color: var(--green);
+  font-size: 14px; font-weight: 700;
+  margin-top: 14px; animation: fadeUp 0.5s ease;
+}
+.finish-banner.show { display: block; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+
+/* Arrows responsive */
+@media(max-width:680px){
+  .stage { grid-template-columns: 1fr; min-height: auto; }
+  .model-col { padding: 12px 0; }
+  .flow-arrow { display: none; }
+}
+
+/* ===== FLYING TOKEN ANIMATION (DOM overlay) ===== */
+.flying-token {
+  position: fixed;
+  font-size: 16px; font-weight: 900;
+  padding: 4px 10px;
+  background: rgba(0,229,255,0.15);
+  border: 1.5px solid var(--accent);
+  border-radius: 8px; color: var(--accent);
+  pointer-events: none; z-index: 999;
+  white-space: nowrap;
+  box-shadow: 0 0 16px rgba(0,229,255,0.3);
+  transition: none;
+}
+
+/* ===== NN pulse highlight ===== */
+.nn-node { transition: r 0.25s, fill 0.25s; }
+.nn-edge { transition: stroke 0.25s, opacity 0.25s; }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+  <div class="header">
+    <h1>生成AIが文章をつくる仕組み</h1>
+    <p>自分で言葉を入れて、AIがどう続きを予測するか見てみよう！</p>
+  </div>
+
+  <!-- ===== SETUP SCREEN ===== -->
+  <div id="setup-screen">
+
+    <div class="setup-card">
+      <div class="setup-title">スタートする言葉を入力</div>
+      <input class="text-input" id="seed-input" type="text"
+        value="ある日、森の中" maxlength="40"
+        placeholder="例：ある日、森の中" />
+      <div class="preset-chips">
+        <button class="chip" onclick="setPreset('ある日、森の中')">ある日、森の中</button>
+        <button class="chip" onclick="setPreset('人工知能とは')">人工知能とは</button>
+        <button class="chip" onclick="setPreset('昔々あるところに')">昔々あるところに</button>
+        <button class="chip" onclick="setPreset('春が来て')">春が来て</button>
+        <button class="chip" onclick="setPreset('宇宙の果てには')">宇宙の果てには</button>
+      </div>
+    </div>
+
+    <div class="mode-section">
+      <div class="mode-label">▶ 1つのモードをじっくり見る</div>
+      <div class="mode-tabs" id="mode-tabs">
+        <button class="mode-tab active" data-mode="standard"
+          data-color="#00e5ff" data-icon="⚖️" data-desc="バランスの取れた自然な文体で生成します">
+          <span class="mode-icon">⚖️</span>標準
+        </button>
+        <button class="mode-tab" data-mode="logical"
+          data-color="#60a5fa" data-icon="🧠" data-desc="論理的・説明的な語彙を優先して選択します">
+          <span class="mode-icon">🧠</span>論理的
+        </button>
+        <button class="mode-tab" data-mode="emotional"
+          data-color="#f472b6" data-icon="💗" data-desc="感情・共感を表す温かい言葉を優先します">
+          <span class="mode-icon">💗</span>感情・共感
+        </button>
+        <button class="mode-tab" data-mode="fantasy"
+          data-color="#a78bfa" data-icon="✨" data-desc="幻想的・詩的な表現を好んで選択します">
+          <span class="mode-icon">✨</span>ファンタジー
+        </button>
+      </div>
+      <div class="mode-desc" id="mode-desc">バランスの取れた自然な文体で生成します</div>
+    </div>
+
+    <button class="btn-start-big" id="start-btn">アニメーションで再生</button>
+
+  </div>
+
+  <!-- ===== VISUALIZER SCREEN ===== -->
+  <div id="viz-screen">
+
+    <div class="mode-badge-row">
+      <div class="mode-badge" id="mode-badge">
+        <span id="mode-badge-icon">⚖️</span>
+        <span id="mode-badge-name">標準モード</span>
+      </div>
+    </div>
+
+    <!-- Thinking -->
+    <div class="thinking" id="thinking">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <span>AIが次の言葉を計算中…</span>
+    </div>
+
+    <!-- 3-Column Stage -->
+    <div class="stage" id="stage">
+
+      <!-- ① LEFT: Context -->
+      <div class="stage-panel context-panel" id="context-panel">
+        <div class="panel-header">
+          <div class="step-badge" style="background:rgba(251,191,36,0.15);border-color:var(--yellow);color:var(--yellow)">①</div>
+          これまでの文章
+        </div>
+        <div class="context-body">
+          <div class="context-tokens" id="context-tokens"></div>
+          <div class="context-step-label" id="step-label">ステップ 0</div>
+        </div>
+      </div>
+
+      <!-- ② CENTER: Model -->
+      <div class="model-col" id="model-col">
+        <!-- top arrow: context → model -->
+        <div class="flow-arrow" id="arrow-in">
+          <div class="arrow-track">
+            <div class="arrow-beam" id="beam-in"></div>
+          </div>
+        </div>
+
+        <div class="model-box" id="model-box">
+          <div class="model-box-title">② 大規模言語モデル</div>
+          <svg id="nn-svg" viewBox="0 0 160 120" height="120">
+            <g id="nn-edges"></g>
+            <g id="nn-nodes"></g>
+          </svg>
+          <div class="nn-label">数百億のパラメータで計算</div>
+        </div>
+
+        <!-- bottom arrow: model → candidates -->
+        <div class="flow-arrow" id="arrow-out">
+          <div class="arrow-track">
+            <div class="arrow-beam" id="beam-out"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ RIGHT: Candidates -->
+      <div class="stage-panel candidates-panel" id="candidates-panel">
+        <div class="panel-header">
+          <div class="step-badge">③</div>
+          次に来る確率の予測
+        </div>
+        <div class="candidates-body" id="candidates-body">
+          <div style="color:var(--muted);font-size:12px;padding:18px 0;text-align:center">
+            生成スタート後に表示
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ④ Output -->
+    <div class="output-row" id="output-row">
+      <div class="output-header">
+        <span style="font-size:15px">④</span> 生成された文章
+      </div>
+      <div class="output-body">
+        <div id="output-full"><span id="output-words"><span class="cursor-blink" id="cursor" style="display:none"></span></span></div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls-row">
+      <button class="btn btn-outline" id="pause-btn">⏸ 一時停止</button>
+      <button class="btn btn-outline" id="back-btn">↺ 入力をやり直す</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-strip">
+      <div class="stat-pill">
+        <div class="stat-num" id="stat-tokens">0</div>
+        <div class="stat-lbl">生成トークン数</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-num" id="stat-prob">—</div>
+        <div class="stat-lbl">平均確率</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-num" id="stat-entropy">—</div>
+        <div class="stat-lbl">エントロピー</div>
+      </div>
+    </div>
+
+    <div class="finish-banner" id="finish-banner">
+      🎉 文章が完成しました！「入力をやり直す」で別の言葉・モードを試してみよう
+    </div>
+
+  </div><!-- end viz-screen -->
+
+</div><!-- end wrapper -->
+
+<script>
+// ============================================================
+// NEURAL NET BUILD
+// ============================================================
+(function buildNN() {
+  const edgesG = document.getElementById('nn-edges');
+  const nodesG = document.getElementById('nn-nodes');
+  const layers = [
+    {x:20,  n:3},
+    {x:60,  n:4},
+    {x:100, n:4},
+    {x:140, n:3},
+  ];
+  const cy = 60;
+  const gap = 22;
+  const nodeColors = ['#a78bfa','#00e5ff','#34d399','#fbbf24'];
+
+  const positions = layers.map(({x,n}) => {
+    const arr = [];
+    for (let i=0;i<n;i++) arr.push({x, y: cy + (i-(n-1)/2)*gap});
+    return arr;
+  });
+
+  for (let l=0;l<layers.length-1;l++) {
+    positions[l].forEach(from => {
+      positions[l+1].forEach(to => {
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.setAttribute('x1',from.x); line.setAttribute('y1',from.y);
+        line.setAttribute('x2',to.x);   line.setAttribute('y2',to.y);
+        line.setAttribute('stroke','#1e2d47'); line.setAttribute('stroke-width','1'); line.setAttribute('opacity','0.7');
+        line.classList.add('nn-edge');
+        edgesG.appendChild(line);
+      });
+    });
+  }
+  positions.forEach((layer, li) => {
+    layer.forEach(({x,y}) => {
+      const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r','7');
+      c.setAttribute('fill', nodeColors[li]+'33');
+      c.setAttribute('stroke', nodeColors[li]);
+      c.setAttribute('stroke-width','1.5');
+      c.classList.add('nn-node');
+      nodesG.appendChild(c);
+    });
+  });
+})();
+
+function pulseNN() {
+  document.querySelectorAll('.nn-edge').forEach(e => {
+    setTimeout(() => {
+      e.setAttribute('stroke','rgba(0,229,255,0.4)'); e.setAttribute('stroke-width','1.5');
+      setTimeout(() => { e.setAttribute('stroke','#1e2d47'); e.setAttribute('stroke-width','1'); }, 550);
+    }, Math.random()*400);
+  });
+  document.querySelectorAll('.nn-node').forEach(n => {
+    setTimeout(() => {
+      n.setAttribute('r','9');
+      setTimeout(() => n.setAttribute('r','7'), 380);
+    }, Math.random()*400);
+  });
+}
+
+// ============================================================
+// MODES
+// ============================================================
+const MODES = {
+  standard: {
+    name: '標準モード', icon: '⚖️', color: '#00e5ff',
+    desc: 'バランスの取れた自然な文体',
+    prompt: `あなたは標準的な日本語テキスト生成システムです。バランスの取れた自然な日本語を生成してください。`,
+    bias: null
+  },
+  logical: {
+    name: '論理的モード', icon: '🧠', color: '#60a5fa',
+    desc: '論理的・説明的な語彙を優先',
+    prompt: `あなたは論理的・分析的な日本語テキスト生成システムです。説明的で論理的な語彙（「なぜなら」「したがって」「つまり」「一方で」「また」「さらに」など）を優先して選択し、明確で理性的な文章を生成してください。`,
+    bias: 'logical'
+  },
+  emotional: {
+    name: '感情・共感モード', icon: '💗', color: '#f472b6',
+    desc: '感情・共感を表す温かい言葉を優先',
+    prompt: `あなたは感情豊かで共感的な日本語テキスト生成システムです。感情を表す語彙（「嬉しい」「温かい」「優しく」「そっと」「心が」「感じた」「想い」など）を優先し、人の心に寄り添う温かい文章を生成してください。`,
+    bias: 'emotional'
+  },
+  fantasy: {
+    name: 'ファンタジーモード', icon: '✨', color: '#a78bfa',
+    desc: '幻想的・詩的な表現を優先',
+    prompt: `あなたは幻想的・詩的な日本語テキスト生成システムです。神秘的で詩的な語彙（「輝く」「魔法」「古代の」「不思議な」「霧の中」「光の」「秘密の」など）を優先し、ファンタジー・物語的な文章を生成してください。`,
+    bias: 'fantasy'
+  }
+};
+
+// ============================================================
+// STATE
+// ============================================================
+const S = {
+  mode: 'standard',
+  running: false,
+  paused: false,
+  text: '',
+  tokens: [],
+  probs: [],
+  tokenCount: 0,
+  maxTokens: 22,
+  timer: null,
+  speed: 1800,
+  blueprint: null,
+  blueprintTokens: [],
+  blueprintIndex: 0,
+};
+
+// ============================================================
+// SETUP UI
+// ============================================================
+document.querySelectorAll('.mode-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    S.mode = tab.dataset.mode;
+    const m = MODES[S.mode];
+    document.getElementById('mode-desc').textContent = tab.dataset.desc;
+    document.documentElement.style.setProperty('--mode-color', m.color);
+  });
+});
+
+function setPreset(t) { document.getElementById('seed-input').value = t; }
+
+// ============================================================
+// COLORS
+// ============================================================
+function candColor(i) {
+  const cols = ['#00e5ff','#a78bfa','#34d399','#fbbf24','#64748b'];
+  return cols[Math.min(i, cols.length-1)];
+}
+
+// ============================================================
+// STEP 1: 文章設計図を事前生成
+// ============================================================
+async function fetchBlueprint(seed) {
+  const m = MODES[S.mode];
+
+  const modeGuide = {
+    standard:  'バランスの取れた自然な日本語で、読みやすく完結した文を作ってください。',
+    logical:   '論理的・説明的な文体で。「なぜなら」「したがって」「一方で」などの接続表現を適切に使い、筋道の立った文を作ってください。',
+    emotional: '感情豊かで共感的な文体で。感情語・擬態語・温かみのある表現を活かし、人の心に寄り添う文を作ってください。ただし同じ言葉の繰り返しは避けること。',
+    fantasy:   '幻想的・詩的な文体で。神秘的・詩的な表現を使い、想像力を刺激する美しい文を作ってください。',
+  }[S.mode];
+
+  const systemPrompt = `あなたは日本語文章生成の教材システムです。
+与えられた書き出しに続く、自然で完結した日本語文章を1文（20〜35文字程度）作成してください。
+${modeGuide}
+
+【重要なルール】
+- 同じ語句・表現を繰り返さない
+- 文法的に正しい日本語にする
+- 文章は必ず句点「。」で終わらせる
+- 書き出しの言葉はそのまま使い、自然につなげる`;
+
+  const userPrompt = `書き出し:「${seed}」
+
+この書き出しに続く完全な文章を1文だけ作成してください。
+その後、その文章全体を自然な意味のまとまりで分割したトークン列をJSON形式で返してください。
+
+出力形式（JSONのみ、前後の説明不要）:
+{
+  "full_sentence": "完成した文章全体（書き出し込み）",
+  "tokens": [
+    {"text": "トークン1", "tag": "品詞"},
+    {"text": "トークン2", "tag": "品詞"},
+    ...
+  ]
+}
+
+- tokensは書き出し部分も含めた文章全体を分割すること
+- 1トークンは1〜4文字の自然な言語単位（形態素）
+- tagは「名詞」「動詞」「助詞」「形容詞」「副詞」「接続詞」「助動詞」「記号」のいずれか`;
+
+  const res = await fetch('/api/claude', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 600,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }]
+    })
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  const data = await res.json();
+  const raw = data.content?.[0]?.text || '';
+  const m2 = raw.match(/\{[\s\S]*\}/);
+  if (!m2) throw new Error('Blueprint JSON not found');
+  return JSON.parse(m2[0]);
+}
+
+// ============================================================
+// STEP 2: 各トークンの候補確率を生成
+// ============================================================
+async function fetchCandidatesForToken(contextSoFar, targetToken, tokenTag) {
+  const m = MODES[S.mode];
+
+  const modeHint = {
+    logical:   '論理的・接続的な語彙を上位候補に。',
+    emotional: '感情・感覚を表す語彙を上位候補に。',
+    fantasy:   '幻想的・詩的な語彙を上位候補に。',
+    standard:  '',
+  }[S.mode];
+
+  const userPrompt = `文章の続きを生成しています。
+現在のコンテキスト:「${contextSoFar}」
+次に選ばれたトークン:「${targetToken}」（品詞: ${tokenTag}）
+
+このコンテキストの次に来る可能性がある候補を5つ挙げ、確率分布を示してください。
+「${targetToken}」を必ず candidates[0] に含め、最も高い確率を割り当ててください。
+${modeHint}
+
+JSONのみ返してください:
+{
+  "candidates": [
+    {"token": "${targetToken}", "prob": 確率0-100, "tag": "${tokenTag}"},
+    {"token": "候補2", "prob": 確率0-100, "tag": "品詞"},
+    {"token": "候補3", "prob": 確率0-100, "tag": "品詞"},
+    {"token": "候補4", "prob": 確率0-100, "tag": "品詞"},
+    {"token": "候補5", "prob": 確率0-100, "tag": "品詞"}
+  ],
+  "mode_pick": true
+}
+- 確率の合計は必ず100
+- mode_pick: モードの特性に基づく選択なら true`;
+
+  const res = await fetch('/api/claude', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 300,
+      messages: [{ role: 'user', content: userPrompt }]
+    })
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  const data = await res.json();
+  const raw = data.content?.[0]?.text || '';
+  const m2 = raw.match(/\{[\s\S]*\}/);
+  if (!m2) throw new Error('Candidates JSON not found');
+  const p = JSON.parse(m2[0]);
+  return {
+    mode_pick: p.mode_pick === true,
+    candidates: (p.candidates || []).map(c => ({
+      token: c.token,
+      prob: Math.max(0.5, Math.min(99, parseFloat(c.prob)||5)),
+      tag: c.tag || ''
+    }))
+  };
+}
+
+// ============================================================
+// RENDER CONTEXT
+// ============================================================
+function renderContext(seed, tokens) {
+  const el = document.getElementById('context-tokens');
+  el.innerHTML = '';
+
+  // seed tokens (gray)
+  const seedSpan = document.createElement('span');
+  seedSpan.textContent = seed;
+  seedSpan.className = 'tok';
+  seedSpan.style.color = 'var(--muted)';
+  el.appendChild(seedSpan);
+
+  tokens.forEach((tok, i) => {
+    const span = document.createElement('span');
+    span.textContent = tok;
+    span.className = 'tok' + (i === tokens.length - 1 ? ' new-token' : '');
+    el.appendChild(span);
+  });
+  document.getElementById('step-label').textContent = `ステップ ${tokens.length}`;
+}
+
+// ============================================================
+// RENDER OUTPUT
+// ============================================================
+function renderOutputWord(tok) {
+  const el = document.getElementById('output-words');
+  const cursor = document.getElementById('cursor');
+  const span = document.createElement('span');
+  span.textContent = tok;
+  span.className = 'tok new-token';
+  if (cursor && cursor.parentNode === el) {
+    el.insertBefore(span, cursor);
+  } else {
+    el.appendChild(span);
+  }
+}
+
+// ============================================================
+// RENDER CANDIDATES
+// ============================================================
+function renderCandidates(candidates, selectedToken, modePick) {
+  const body = document.getElementById('candidates-body');
+  body.innerHTML = '';
+  const maxP = candidates[0]?.prob || 1;
+  const modeColor = MODES[S.mode].color;
+
+  candidates.slice(0, 5).forEach((c, i) => {
+    const isSelected = c.token === selectedToken;
+    const isModePick = isSelected && modePick;
+    const col = candColor(i);
+    const row = document.createElement('div');
+    row.className = `candidate-row rank-${i} appearing ${isSelected ? 'selected' : ''} ${isModePick ? 'mode-pick' : ''}`;
+    row.style.animationDelay = `${i*60}ms`;
+
+    row.innerHTML = `
+      <div class="cand-word" style="color:${isSelected ? modeColor : col}">${escHtml(c.token)}</div>
+      ${c.tag ? `<div class="cand-tag">${c.tag}</div>` : ''}
+      <div class="cand-bar-wrap">
+        <div class="cand-bar" style="background:${isSelected ? modeColor : col}"></div>
+      </div>
+      <div class="cand-pct" style="color:${isSelected ? modeColor : col}">${c.prob.toFixed(0)}%</div>
+      <div class="cand-check" style="color:${modeColor}">✓</div>
+      ${isModePick ? `<div class="mode-indicator">${MODES[S.mode].icon} モード選択</div>` : ''}
+    `;
+
+    // Animate bar
+    const bar = row.querySelector('.cand-bar');
+    setTimeout(() => {
+      bar.style.width = `${(c.prob/maxP*100).toFixed(1)}%`;
+    }, 60 + i*70);
+
+    // Animate background fill
+    const fill = row.querySelector('::before');
+    body.appendChild(row);
+  });
+}
+
+// ============================================================
+// ARROW BEAM ANIMATION
+// ============================================================
+function fireBeam(beamId, fromLeft) {
+  const beam = document.getElementById(beamId);
+  if (!beam) return;
+  beam.style.left = fromLeft ? '0%' : '100%';
+  beam.classList.add('flying');
+  setTimeout(() => {
+    beam.style.transition = 'left 0.45s cubic-bezier(0.4,0,0.2,1)';
+    beam.style.left = fromLeft ? '100%' : '0%';
+  }, 30);
+  setTimeout(() => {
+    beam.classList.remove('flying');
+    beam.style.transition = 'none';
+  }, 520);
+}
+
+// ============================================================
+// FLYING TOKEN ANIMATION
+// ============================================================
+function flyToken(token, fromEl, toEl, onDone) {
+  const fromRect = fromEl.getBoundingClientRect();
+  const toRect   = toEl.getBoundingClientRect();
+
+  const fly = document.createElement('div');
+  fly.className = 'flying-token';
+  fly.textContent = token;
+  fly.style.left = `${fromRect.left + fromRect.width/2}px`;
+  fly.style.top  = `${fromRect.top  + fromRect.height/2}px`;
+  fly.style.transform = 'translate(-50%,-50%)';
+  document.body.appendChild(fly);
+
+  const dx = toRect.left + toRect.width/2  - (fromRect.left + fromRect.width/2);
+  const dy = toRect.top  + toRect.height/2 - (fromRect.top  + fromRect.height/2);
+
+  // Frame 1: start pos (already set)
+  requestAnimationFrame(() => {
+    fly.style.transition = 'left 0.55s cubic-bezier(0.4,0,0.2,1), top 0.55s cubic-bezier(0.4,0,0.2,1), opacity 0.55s ease';
+    fly.style.left = `${fromRect.left + fromRect.width/2 + dx}px`;
+    fly.style.top  = `${fromRect.top  + fromRect.height/2 + dy}px`;
+    fly.style.opacity = '0';
+  });
+
+  setTimeout(() => { fly.remove(); onDone && onDone(); }, 600);
+}
+
+// ============================================================
+// STATS
+// ============================================================
+function updateStats() {
+  document.getElementById('stat-tokens').textContent = S.tokenCount;
+  if (S.probs.length > 0) {
+    const avg = S.probs.reduce((a,b)=>a+b,0)/S.probs.length;
+    document.getElementById('stat-prob').textContent = avg.toFixed(0)+'%';
+    document.getElementById('stat-entropy').textContent = (-Math.log2(avg/100+0.001)).toFixed(2);
+  }
+}
+
+// ============================================================
+// GENERATE STEP (設計図ベース)
+// ============================================================
+async function generateStep() {
+  if (!S.running || S.paused) return;
+
+  // 設計図のトークンを使い切ったら終了
+  if (S.blueprintIndex >= S.blueprintTokens.length) {
+    finishGen();
+    return;
+  }
+
+  const blueprintToken = S.blueprintTokens[S.blueprintIndex];
+  const token    = blueprintToken.text;
+  const tokenTag = blueprintToken.tag;
+  const isEnd    = S.blueprintIndex === S.blueprintTokens.length - 1;
+
+  // シードのトークンはアニメーションなしでスキップ
+  const seedTokens = S._seedTokens || [];
+  if (S.blueprintIndex < seedTokens.length) {
+    S.blueprintIndex++;
+    S.timer = setTimeout(generateStep, 50);
+    return;
+  }
+
+  document.getElementById('thinking').classList.add('active');
+  pulseNN();
+
+  let candResult;
+  try {
+    candResult = await fetchCandidatesForToken(S.text, token, tokenTag);
+  } catch(e) {
+    console.error(e);
+    // 候補取得失敗時はダミー確率で続行
+    candResult = {
+      mode_pick: false,
+      candidates: [
+        {token, prob: 70, tag: tokenTag},
+        {token: '…', prob: 15, tag: '記号'},
+        {token: 'の', prob: 8, tag: '助詞'},
+        {token: 'が', prob: 4, tag: '助詞'},
+        {token: 'を', prob: 3, tag: '助詞'},
+      ]
+    };
+  }
+
+  document.getElementById('thinking').classList.remove('active');
+  if (!S.running) return;
+
+  const { mode_pick, candidates } = candResult;
+
+  // 選択トークンを必ず先頭に
+  const hasSel = candidates.some(c => c.token === token);
+  if (!hasSel) candidates[0] = {token, prob: candidates[0].prob, tag: tokenTag};
+
+  // Normalize
+  const total = candidates.reduce((s,c)=>s+c.prob,0);
+  candidates.forEach(c => c.prob = c.prob/total*100);
+
+  S.text += token;
+  S.tokens.push(token);
+  S.tokenCount++;
+  S.blueprintIndex++;
+
+  const selCand = candidates.find(c=>c.token===token);
+  S.probs.push(selCand ? selCand.prob : 70);
+
+  // Phase 1: 候補パネル表示
+  renderCandidates(candidates, token, mode_pick);
+
+  // Phase 2: beam context → model
+  fireBeam('beam-in', true);
+  setTimeout(() => pulseNN(), 250);
+
+  // Phase 3: beam model → candidates
+  setTimeout(() => fireBeam('beam-out', true), 500);
+
+  // Phase 4: fly token + update UI
+  setTimeout(() => {
+    const candidatesEl = document.getElementById('candidates-panel');
+    const outputEl     = document.getElementById('output-row');
+    renderContext(S._seed, S.tokens);
+    updateStats();
+    flyToken(token, candidatesEl, outputEl, () => {
+      renderOutputWord(token);
+    });
+  }, S.speed * 0.62);
+
+  if (isEnd || S.text.match(/[。！？…]$/)) {
+    setTimeout(finishGen, S.speed * 0.9 + 500);
+    return;
+  }
+  S.timer = setTimeout(generateStep, S.speed);
+}
+
+// ============================================================
+// START / STOP
+// ============================================================
+async function startGeneration() {
+  const seed = document.getElementById('seed-input').value.trim();
+  if (!seed) { alert('言葉を入力してください'); return; }
+
+  const m = MODES[S.mode];
+  document.documentElement.style.setProperty('--mode-color', m.color);
+
+  // Switch screens
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('viz-screen').style.display = 'block';
+
+  // Set mode badge
+  document.getElementById('mode-badge-icon').textContent = m.icon;
+  document.getElementById('mode-badge-name').textContent = m.name;
+  document.getElementById('mode-badge').style.borderColor = m.color;
+  document.getElementById('mode-badge').style.color = m.color;
+
+  // Show "thinking" while fetching blueprint
+  document.getElementById('thinking').classList.add('active');
+  document.getElementById('thinking').querySelector('span:last-child').textContent = '文章を設計中…';
+
+  // ---- STEP 1: Blueprint (完成文章を先に生成) ----
+  let blueprint;
+  try {
+    blueprint = await fetchBlueprint(seed);
+  } catch(e) {
+    console.error('Blueprint error:', e);
+    document.getElementById('thinking').classList.remove('active');
+    alert('AI接続に失敗しました。もう一度お試しください。');
+    document.getElementById('setup-screen').style.display = 'block';
+    document.getElementById('viz-screen').style.display = 'none';
+    return;
+  }
+  document.getElementById('thinking').classList.remove('active');
+  document.getElementById('thinking').querySelector('span:last-child').textContent = 'AIが次の言葉を計算中…';
+
+  // Init state
+  S.running = true; S.paused = false;
+  S._seed = seed;
+  S.text = seed;
+  S.tokens = []; S.probs = []; S.tokenCount = 0;
+  S.blueprint = blueprint;
+  S.blueprintTokens = blueprint.tokens || [];
+  S.blueprintIndex = 0;
+
+  // シードに対応するトークン数を計算（設計図の先頭から seed と一致する分）
+  let seedCovered = '';
+  let seedTokenCount = 0;
+  for (const t of S.blueprintTokens) {
+    if (seedCovered.length >= seed.length) break;
+    seedCovered += t.text;
+    seedTokenCount++;
+  }
+  S._seedTokens = S.blueprintTokens.slice(0, seedTokenCount);
+  S.blueprintIndex = seedTokenCount; // シード部分はスキップ
+
+  // Init UI
+  renderContext(seed, []);
+  const owEl = document.getElementById('output-words');
+  owEl.innerHTML = '';
+  const seedSpan = document.createElement('span');
+  seedSpan.textContent = seed;
+  seedSpan.className = 'tok';
+  seedSpan.style.color = 'var(--muted)';
+  owEl.appendChild(seedSpan);
+  let cur = document.getElementById('cursor');
+  if (!cur) {
+    cur = document.createElement('span');
+    cur.id = 'cursor';
+    cur.className = 'cursor-blink';
+  }
+  cur.style.display = 'inline-block';
+  owEl.appendChild(cur);
+
+  generateStep();
+}
+
+function stopGen() {
+  S.running = false;
+  clearTimeout(S.timer);
+  document.getElementById('thinking').classList.remove('active');
+}
+
+function finishGen() {
+  stopGen();
+  document.getElementById('cursor').style.display = 'none';
+  document.getElementById('finish-banner').classList.add('show');
+}
+
+function goBack() {
+  stopGen();
+  document.getElementById('setup-screen').style.display = 'block';
+  document.getElementById('viz-screen').style.display = 'none';
+  document.getElementById('finish-banner').classList.remove('show');
+  document.getElementById('finish-banner').style.color = '';
+  document.getElementById('finish-banner').style.borderColor = '';
+  document.getElementById('candidates-body').innerHTML =
+    '<div style="color:var(--muted);font-size:12px;padding:18px 0;text-align:center">生成スタート後に表示</div>';
+  // Reset output-words and put cursor back inside
+  const owEl2 = document.getElementById('output-words');
+  owEl2.innerHTML = '<span class="cursor-blink" id="cursor" style="display:none"></span>';
+  updateStats();
+  S.tokens = []; S.probs = []; S.tokenCount = 0;
+  S.blueprint = null; S.blueprintTokens = []; S.blueprintIndex = 0;
+}
+
+// Pause
+document.getElementById('pause-btn').addEventListener('click', () => {
+  S.paused = !S.paused;
+  const btn = document.getElementById('pause-btn');
+  if (S.paused) {
+    clearTimeout(S.timer);
+    btn.textContent = '▶ 再開';
+    document.getElementById('thinking').classList.remove('active');
+  } else {
+    btn.textContent = '⏸ 一時停止';
+    S.running = true;
+    generateStep();
+  }
+});
+
+document.getElementById('start-btn').addEventListener('click', startGeneration);
+document.getElementById('back-btn').addEventListener('click', goBack);
+document.getElementById('seed-input').addEventListener('keydown', e => { if(e.key==='Enter') startGeneration(); });
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
