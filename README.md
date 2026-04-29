@@ -1,4 +1,4 @@
-<img width="567" height="283" alt="画像2" src="https://github.com/user-attachments/assets/b76793f9-3921-4648-b57f-1a7a3710e230" /># AI Text Demo
+# AI Text Demo
 
 Claude API を利用したAI文章生成シミュレーションアプリ。  
 次単語候補・確率・品詞を可視化し、生成AIの仕組みを学べます。  
