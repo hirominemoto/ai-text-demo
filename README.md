@@ -23,3 +23,10 @@ Claude API を利用したAI文章生成シミュレーションアプリ。
 - TypeScript
 - Vercel
 - Claude API
+
+- ##Built With AI Support
+- 
+複数のAIツールを活用し、試作・改善・調整を重ねながら人間主導で完成させたプロジェクトです。
+
+Initial prototype developed with Gemini, then refined through iterative collaboration using Claude and ChatGPT.
+- 
